@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use tracing::info;
 
 use crate::{
-    color_space::ColorSpace,
+    color_space::{ColorSpace, ColorSpaceKind},
     palette::{FilePaletteSource, Palette},
     processor::{process_image, ProcessResult},
 };
@@ -33,13 +33,8 @@ struct Cli {
     )]
     extensions: Vec<String>,
 
-    #[arg(
-        short,
-        long,
-        default_value = "rgb",
-        value_parser = clap::builder::PossibleValuesParser::new(crate::color_space::available_names())
-    )]
-    color_space: String,
+    #[arg(short, long, default_value = "rgb")]
+    color_space: ColorSpaceKind,
 }
 
 pub fn expand_inputs(inputs: &[PathBuf], extensions: &[String]) -> Vec<PathBuf> {
@@ -161,8 +156,8 @@ pub fn run() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    let space = crate::color_space::from_name(&cli.color_space)?;
-    info!("Color space: {}", cli.color_space);
+    let space = cli.color_space.into_space();
+    info!("Color space: {:?}", cli.color_space);
 
     info!("Loading palette from {:?}", cli.palette);
     let palette = Palette::load(&FilePaletteSource(cli.palette.clone()))?;
@@ -185,7 +180,7 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::color_space;
+    use crate::color_space::ColorSpaceKind;
 
     struct NoopReporter;
     impl Reporter for NoopReporter {
@@ -195,7 +190,7 @@ mod tests {
 
     #[test]
     fn run_batch_collects_all_errors_without_aborting() {
-        let space = color_space::from_name("rgb").unwrap();
+        let space = ColorSpaceKind::Rgb.into_space();
         let palette = vec![[255u8, 0, 0, 255]];
         let inputs = vec![
             std::path::PathBuf::from("/nonexistent/a.png"),
@@ -215,7 +210,7 @@ mod tests {
 
     #[test]
     fn run_batch_returns_one_outcome_per_input() {
-        let space = color_space::from_name("rgb").unwrap();
+        let space = ColorSpaceKind::Rgb.into_space();
         let palette = vec![[0u8, 0, 0, 255]];
         let inputs: Vec<std::path::PathBuf> = (0..5)
             .map(|i| std::path::PathBuf::from(format!("/nonexistent/{i}.png")))

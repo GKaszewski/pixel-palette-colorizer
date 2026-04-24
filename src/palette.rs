@@ -27,10 +27,16 @@ fn parse_hex_text(bytes: &[u8]) -> anyhow::Result<Vec<[u8; 4]>> {
     let content = std::str::from_utf8(bytes).context("Palette text is not valid UTF-8")?;
     let mut colors = Vec::new();
     for line in content.lines() {
-        let hex = line.trim().trim_start_matches('#');
-        if hex.is_empty() {
+        let stripped = line.trim().trim_start_matches('#');
+        if stripped.is_empty() {
             continue;
         }
+        let expanded: String = if stripped.len() == 3 || stripped.len() == 4 {
+            stripped.chars().flat_map(|c| [c, c]).collect()
+        } else {
+            stripped.to_string()
+        };
+        let hex = expanded.as_str();
         if hex.len() == 6 || hex.len() == 8 {
             let r = u8::from_str_radix(&hex[0..2], 16).context("Invalid hex color")?;
             let g = u8::from_str_radix(&hex[2..4], 16).context("Invalid hex color")?;
@@ -127,8 +133,28 @@ mod tests {
 
     #[test]
     fn hex_skips_wrong_length_lines() {
-        let p = Palette::load(&src("hex", "#fff\n#ff0000\n")).unwrap();
+        // 5-char hex is invalid after shorthand expansion
+        let p = Palette::load(&src("hex", "#fffff\n#ff0000\n")).unwrap();
         assert_eq!(p.colors().len(), 1);
+    }
+
+    #[test]
+    fn hex_expands_three_char_shorthand() {
+        let p = Palette::load(&src("hex", "#FFF\n")).unwrap();
+        assert_eq!(p.colors(), &[[255u8, 255, 255, 255]]);
+    }
+
+    #[test]
+    fn hex_expands_three_char_shorthand_lowercase() {
+        let p = Palette::load(&src("hex", "#fff\n")).unwrap();
+        assert_eq!(p.colors(), &[[255u8, 255, 255, 255]]);
+    }
+
+    #[test]
+    fn hex_expands_four_char_shorthand_with_alpha() {
+        // #F00A → FF0000AA → [255, 0, 0, 170]
+        let p = Palette::load(&src("hex", "#F00A\n")).unwrap();
+        assert_eq!(p.colors(), &[[255u8, 0, 0, 170]]);
     }
 
     #[test]

@@ -24,10 +24,18 @@ pub fn remap_pixels(
         if pixel[3] == 0 {
             continue;
         }
+        // Premul is exact for RGB; non-linear spaces (Lab, Oklab, HSL) treat premul'd bytes as straight sRGB.
+        let alpha = pixel[3];
+        let premul = [
+            (pixel[0] as u16 * alpha as u16 / 255) as u8,
+            (pixel[1] as u16 * alpha as u16 / 255) as u8,
+            (pixel[2] as u16 * alpha as u16 / 255) as u8,
+            alpha,
+        ];
         let mut min_distance = f64::MAX;
         let mut best_match: [u8; 4] = pixel.0;
         for palette_color in palette {
-            let dist = color_space.distance(&pixel.0, palette_color);
+            let dist = color_space.distance(&premul, palette_color);
             if dist < min_distance {
                 min_distance = dist;
                 best_match = *palette_color;
@@ -108,6 +116,17 @@ mod tests {
         let palette = vec![[255u8, 0, 0, 255]];
         let stats = remap_pixels(&mut img, &palette, &RgbSpace);
         assert_eq!(stats.pixels_changed, 0);
+    }
+
+    #[test]
+    fn semi_transparent_pixel_uses_premultiplied_distance() {
+        // [255, 0, 0, 128] premultiplied → [128, 0, 0]
+        // palette: bright-red [255,0,0] vs dark-red [128,0,0]
+        // premul distance to dark-red = 0, so dark-red wins; original alpha preserved
+        let mut img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255u8, 0, 0, 128]));
+        let palette = vec![[255u8, 0, 0, 255], [128u8, 0, 0, 255]];
+        remap_pixels(&mut img, &palette, &RgbSpace);
+        assert_eq!(img.get_pixel(0, 0).0, [128, 0, 0, 128]);
     }
 
     #[test]

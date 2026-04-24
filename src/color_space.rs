@@ -63,56 +63,29 @@ impl ColorSpace for OklabSpace {
     }
 }
 
-struct ColorSpaceEntry {
-    name: &'static str,
-    build: fn() -> Box<dyn ColorSpace>,
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum ColorSpaceKind {
+    Rgb,
+    Hsl,
+    Lab,
+    Oklab,
 }
 
-static REGISTRY: &[ColorSpaceEntry] = &[
-    ColorSpaceEntry { name: "rgb",   build: || Box::new(RgbSpace)   },
-    ColorSpaceEntry { name: "hsl",   build: || Box::new(HslSpace)   },
-    ColorSpaceEntry { name: "lab",   build: || Box::new(LabSpace)   },
-    ColorSpaceEntry { name: "oklab", build: || Box::new(OklabSpace) },
-];
-
-pub fn available_names() -> impl Iterator<Item = &'static str> {
-    REGISTRY.iter().map(|e| e.name)
+impl ColorSpaceKind {
+    pub fn into_space(self) -> Box<dyn ColorSpace> {
+        match self {
+            Self::Rgb   => Box::new(RgbSpace),
+            Self::Hsl   => Box::new(HslSpace),
+            Self::Lab   => Box::new(LabSpace),
+            Self::Oklab => Box::new(OklabSpace),
+        }
+    }
 }
 
-pub fn from_name(name: &str) -> anyhow::Result<Box<dyn ColorSpace>> {
-    REGISTRY
-        .iter()
-        .find(|e| e.name == name)
-        .map(|e| (e.build)())
-        .ok_or_else(|| anyhow::anyhow!("Unknown color space: {name}"))
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn from_name_rgb_returns_working_space() {
-        let space = from_name("rgb").unwrap();
-        let white = [255u8, 255, 255, 255];
-        let black = [0u8, 0, 0, 255];
-        assert!(space.distance(&white, &black) > 0.0);
-        assert_eq!(space.distance(&white, &white), 0.0);
-    }
-
-    #[test]
-    fn from_name_unknown_is_err() {
-        assert!(from_name("xyz").is_err());
-    }
-
-    #[test]
-    fn registry_is_coherent() {
-        let names: Vec<_> = available_names().collect();
-        assert_eq!(names.len(), 4, "expected 4 registered color spaces");
-        for name in &names {
-            assert!(from_name(name).is_ok(), "from_name failed for {name}");
-        }
-    }
 
     #[test]
     fn lab_distance_positive_for_different_colors() {
@@ -141,5 +114,22 @@ mod tests {
         let black = [0u8, 0, 0, 255];
         assert!(space.distance(&white, &black) > 0.0);
         assert!(space.distance(&white, &white) < 1e-10);
+    }
+
+    #[test]
+    fn all_variants_produce_working_spaces() {
+        let variants = [
+            ColorSpaceKind::Rgb,
+            ColorSpaceKind::Hsl,
+            ColorSpaceKind::Lab,
+            ColorSpaceKind::Oklab,
+        ];
+        let white = [255u8, 255, 255, 255];
+        let black = [0u8, 0, 0, 255];
+        for variant in variants {
+            let space = variant.into_space();
+            assert!(space.distance(&white, &black) > 0.0);
+            assert!(space.distance(&white, &white) < 1e-10);
+        }
     }
 }
