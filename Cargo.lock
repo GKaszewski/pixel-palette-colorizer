@@ -878,7 +878,6 @@ dependencies = [
  "palette",
  "rayon",
  "tempfile",
- "thiserror",
  "tracing",
  "tracing-subscriber",
  "walkdir",
