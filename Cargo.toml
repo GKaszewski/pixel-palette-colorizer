@@ -2,6 +2,7 @@
 name = "pixel-palette-colorizer"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/GKaszewski/pixel-palette-colorizer"
 
 [dependencies]
 anyhow = "1.0.102"
@@ -22,3 +23,8 @@ opt-level = 3
 strip = true
 lto = true
 codegen-units = 1
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
